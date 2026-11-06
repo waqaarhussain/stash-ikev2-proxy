@@ -26,6 +26,7 @@ UNIT = 'stash-exit-engine.service'
 FIRST_PORT, LAST_PORT = 20000, 20127
 CIPHER = 'aes-128-gcm'
 CONTROL_D = '76.76.2.22'
+DIRECT_DESTINATION = '45.88.89.23'
 
 
 def load():
@@ -128,6 +129,7 @@ def engine_config(state):
     for index, details in enumerate(state['exits'].values()):
         outbounds.append(outbound(f'exit-{index}', details))
     exit_tags = dict(zip(state['exits'], (proxy['tag'] for proxy in outbounds)))
+    outbounds.append({'type': 'direct', 'tag': 'vps-direct', 'domain_resolver': 'upstream-bootstrap'})
     for index, (device, resolver) in enumerate(state['devices'].items()):
         tag = f'doh-{index}'
         dns.append({'type': 'https', 'tag': tag, 'server': CONTROL_D,
@@ -146,6 +148,9 @@ def engine_config(state):
             inbounds.append(settings)
             rules.extend([
                 {'inbound': inbound, 'action': 'resolve', 'server': tag, 'strategy': 'ipv4_only'},
+                {'inbound': inbound, 'ip_cidr': f'{DIRECT_DESTINATION}/32',
+                 'action': 'route', 'outbound': 'vps-direct',
+                 'override_address': DIRECT_DESTINATION},
                 {'inbound': inbound, 'ip_is_private': True, 'action': 'reject'},
                 {'inbound': inbound, 'action': 'route', 'outbound': exit_tags[profile['exit']]},
             ])

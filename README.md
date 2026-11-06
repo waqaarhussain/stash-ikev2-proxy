@@ -35,7 +35,7 @@ The installer installs checksummed releases of sing-box and Caddy. Caddy obtains
 
 ## Routing and DNS
 
-The profile routes app traffic captured by Stash through its selected exit, including YouTube. There are no service-domain rules or destination IP bypasses. The per-device Control D endpoint uses a direct DoH connection. When the VPS receives a destination hostname, sing-box resolves it with that same device’s Control D endpoint. sing-box uses the VPS system resolver to look up upstream proxy hostnames.
+The profile routes app traffic captured by Stash through its selected exit, including YouTube. Traffic destined for `45.88.89.23` leaves directly from the VPS, bypassing the selected upstream proxy. This exception matches the destination IP. The per-device Control D endpoint uses a direct DoH connection. When the VPS receives a destination hostname, sing-box resolves it with that same device’s Control D endpoint. sing-box uses the VPS system resolver to look up upstream proxy hostnames.
 
 HTTP exits carry TCP only. SOCKS5 and Shadowsocks can carry UDP when the provider supports relay and you enable it when adding the exit. The upstream failure path has no direct app traffic fallback. The app profile is IPv4-oriented. This is a proxy tunnel for Stash-managed traffic.
 

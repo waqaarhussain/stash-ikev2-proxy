@@ -36,7 +36,7 @@ fetch() {
     curl --proto '=https' -fsSL --retry 2 --connect-timeout 10 --max-time 120 "$1" -o "$2"
     printf '%s  %s\n' "$3" "$2" | sha256sum -c -
 }
-fetch "$SOURCE/manager.py" "$TEMP/manager.py" 5a3d6355dc235f2136dd6973e363d833d97c221cff4b1900a981346572db5cce
+fetch "$SOURCE/manager.py" "$TEMP/manager.py" daffc2101a94625798c0bd167572e8b57db162fc22d37181871bdab97d8734a9
 fetch https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-linux-amd64.tar.gz \
     "$TEMP/sing-box.tgz" 699a1b510aa4396b2176d32d1181920399ebf1e267835da6f3b598d0f7c24968
 fetch https://github.com/caddyserver/caddy/releases/download/v2.11.9/caddy_2.11.9_linux_amd64.tar.gz \
