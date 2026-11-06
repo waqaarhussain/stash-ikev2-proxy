@@ -19,16 +19,16 @@ The installer installs checksummed releases of sing-box and Caddy. Caddy obtains
 ## Add an exit and import a profile
 
 1. Run `add` and give the exit a name such as **US** or **UK**. Enter the provider's host, port and credentials. For IP-allowlisted upstreams, allowlist the VPS IP with the provider.
-2. Run `new` and select the exit. Select an existing device or add one with its full Control D DoH URL, such as `https://dns.controld.com/DEVICE_RESOLVER_ID`.
-3. Copy the HTTPS URL printed after the prompts and import it in Stash using **Download from URL**. Use **Rule** mode. Give each imported profile a distinct name in Stash if needed.
-4. Repeat `new` with the same device and another exit to get another country profile. Switch countries by switching profiles in Stash.
+2. Run `new` to add a device. With no saved devices it goes straight to the name prompt. Paste its full Control D DoH URL. The helper confirms the saved URL and prints a profile link for each existing exit.
+3. Import the links in Stash using **Download from URL** and select **Rule** mode. The config filename uses the exit label, such as `US.yaml`. Switch countries by switching profiles in Stash.
+4. Adding a country with `add` automatically creates and prints a new link for every saved device, reusing each device’s saved DNS. Use `new` with an existing device to create a missing profile for a selected exit.
 
 `link` lists device and country pairs by number, then prints only the selected profile URL. Treat these links as passwords. Each URL can download a config containing credentials for its VPS listener.
 
 | Command | Action |
 | --- | --- |
 | `add` | Add an HTTP, SOCKS5 or Shadowsocks exit |
-| `new` | Create a profile for one device and exit, then print its URL |
+| `new` | Add a device for all exits, or create a missing device/exit profile |
 | `link` | Retrieve a profile's private HTTPS URL |
 | `manage` | Edit or remove an exit, change device DNS, list or revoke profiles |
 | `bench` | Check each upstream's public exit identity and request time using a TCP HTTPS request |
@@ -41,7 +41,7 @@ HTTP exits carry TCP only. SOCKS5 and Shadowsocks can carry UDP when the provide
 
 ## Operation
 
-Exit edits apply on the VPS and keep existing links valid. Refresh the profile in Stash when changing a device’s DNS or an exit’s UDP setting. Revoking a profile removes both its download URL and its server-side listener. Changes to the registry check the generated engine configuration, restart the engine briefly and restore the previous configuration if listener startup fails.
+Exit edits apply on the VPS and keep existing links valid. Older `config.yaml` links still work. Run `link` for the country-named URL. Refresh the profile in Stash when changing a device’s DNS or an exit’s UDP setting. Revoking a profile removes both its download URL and its server-side listener. Changes to the registry check the generated engine configuration, restart the engine briefly and restore the previous configuration if listener startup fails.
 
 Back up `/var/lib/stash-ikev2-proxy/state.json` privately. It contains the upstream credentials, device DNS URLs and profile credentials. Runtime services are `stash-exit-engine`, `stash-exit-profiles` and `stash-exit-https`.
 

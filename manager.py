@@ -16,7 +16,7 @@ import time
 from getpass import getpass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import yaml
 
@@ -197,8 +197,13 @@ def apply(before, after):
         raise
 
 
+def config_filename(profile):
+    return profile['exit'].replace('/', '-').replace('\\', '-') + '.yaml'
+
+
 def config_url(state, profile):
-    return f"https://{state['host']}:8443/s/{profile['token']}/config.yaml"
+    filename = quote(config_filename(profile), safe='')
+    return f"https://{state['host']}:8443/s/{profile['token']}/{filename}"
 
 
 def stash_config(state, profile):
@@ -235,15 +240,24 @@ def free_port(state):
     raise ValueError('No profile ports are available.')
 
 
-def new_profile(state):
-    exit_name = pick(list(state['exits']), 'Choose country/exit: ')
-    device = pick([None, *state['devices']], 'Choose device: ',
-                  lambda item: item or 'Add a new device')
-    if device is None:
-        device = label('Device name: ')
-        if device in state['devices']:
-            raise ValueError('Device already exists. Select it from the device list.')
-        state['devices'][device] = dns_url(getpass('This device’s Control D DoH URL: ').strip())
+def new_profiles(state):
+    if not state['exits']:
+        raise ValueError('Run add to register a proxy exit first.')
+    device = None
+    if state['devices']:
+        device = pick([None, *state['devices']], 'Choose device: ',
+                      lambda item: item or 'Add a new device')
+    if device is not None:
+        exit_name = pick(list(state['exits']), 'Choose country/exit: ')
+        return [create_profile(state, device, exit_name)]
+    device = label('Device name: ')
+    if device in state['devices']:
+        raise ValueError('Device already exists. Select it from the device list.')
+    state['devices'][device] = dns_url(getpass('This device’s Control D DoH URL: ').strip())
+    return [create_profile(state, device, exit_name) for exit_name in state['exits']]
+
+
+def create_profile(state, device, exit_name):
     if any(p['device'] == device and p['exit'] == exit_name for p in state['profiles']):
         raise ValueError('This device already has a profile for that exit. Run link.')
     profile = {'device': device, 'exit': exit_name, 'port': free_port(state),
@@ -257,21 +271,25 @@ class Profiles(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        match = re.fullmatch(r'/s/([A-Za-z0-9_-]{43})/config\.yaml', self.path)
+        match = re.fullmatch(r'/s/([A-Za-z0-9_-]{43})/([^/?#]+\.yaml)', self.path)
         if self.path == '/health':
             return self.respond(200, 'ok\n', 'text/plain')
         if match:
             state = load()
             for profile in state['profiles']:
-                if hmac.compare_digest(match[1], profile['token']):
+                if hmac.compare_digest(match[1], profile['token']) and unquote(match[2]) in (
+                        'config.yaml', config_filename(profile)):
                     return self.respond(200, yaml.safe_dump(stash_config(state, profile), sort_keys=False),
-                                        'application/yaml')
+                                        'application/yaml', config_filename(profile))
         self.respond(404, 'Not found\n', 'text/plain')
 
-    def respond(self, status, body, content_type):
+    def respond(self, status, body, content_type, filename=None):
         payload = body.encode()
         self.send_response(status)
         self.send_header('Content-Type', content_type)
+        if filename:
+            encoded = quote(filename, safe='')
+            self.send_header('Content-Disposition', f"attachment; filename*=UTF-8''{encoded}")
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Content-Length', str(len(payload)))
         self.end_headers()
@@ -329,7 +347,7 @@ def manage(state):
     elif action == 'Change device DNS':
         device = pick(list(state['devices']), 'Choose device: ')
         state['devices'][device] = dns_url(getpass('New Control D DoH URL: ').strip())
-        print('Refresh this device’s profiles in Stash after the change succeeds.')
+        return device
     elif action == 'Revoke profile':
         profile = pick(state['profiles'], 'Choose profile: ', profile_label)
         state['profiles'].remove(profile)
@@ -362,19 +380,30 @@ def main():
         if args.command == 'bench':
             bench(state)
             return
-        profile = None
+        profiles = []
+        dns_device = None
         if args.command == 'add':
             name = label('Country/exit label: ')
             if name in state['exits'] or ',' in name or name in ('DIRECT', 'REJECT'):
                 raise ValueError('Choose a unique exit label without commas or reserved rule names.')
             state['exits'][name] = exit_details()
+            profiles = [create_profile(state, device, name) for device in state['devices']]
         elif args.command == 'new':
-            profile = new_profile(state)
+            profiles = new_profiles(state)
         else:
-            manage(state)
+            dns_device = manage(state)
         apply(before, state)
-        if profile:
+        for device, resolver in state['devices'].items():
+            if device == dns_device or device not in before['devices']:
+                print(f'Saved Control D DNS for {device}: {resolver}')
+        if dns_device is not None:
+            print("Refresh this device’s profiles in Stash to load the saved DNS.")
+        for profile in profiles:
+            if len(profiles) > 1:
+                print(profile_label(profile))
             print(config_url(state, profile))
+        if args.command == 'add' and not profiles:
+            print('Run new to add your first device.')
 
 
 if __name__ == '__main__':
